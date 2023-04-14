@@ -1,1 +1,2 @@
-# black_gold_and_dull_minds
+# Black Gold and Dull Minds: The Impact of Oil Exploration Announcements on Education in Colombia
+In this study, I investigate the impact of oil exploration announcements on dropout rates and academic performance in exploration areas of Colombia. Using a Geographic Regression Discontinuity Design , I provide evidence of the effect on education perfor- mance and human capital accumulation
