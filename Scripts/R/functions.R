@@ -41,42 +41,66 @@ plot_coefficients_by_grade <- function(data, coeff_col, se_col, grade_col, title
 }
 
 
+library(ggplot2)
+library("scales")
 
 
+summary_plot = function (out, conf_level = 0.95, TITULO = '') {
+  
 
-
-summary_plot = function (out,  TITULO= '') {
- 
-  library(ggplot2)
-  library("scales")
   mynamestheme <- ggplot2::theme(
     plot.title = element_text(family = "Helvetica", face = "bold", size = (15), hjust = 0.5, vjust = 0.5),
     legend.title = element_text(colour = "steelblue", face = "bold.italic", family = "Helvetica"),
     legend.text = element_text(face = "italic", colour = "steelblue4", family = "Helvetica"),
     axis.title = element_text(family = "Helvetica", face = "bold", size = (12), colour = "steelblue4"),
     axis.text = element_text(family = "Courier", face = "bold", colour = "cornflowerblue", size = (12)),
-    legend.position = "bottom"  )
-  estimators = unique(out$grade)
-   y_lims = c(min(out$ci.CI.Lower), max(out$ci.CI.Upper)) * 1.05
-
-  out$grade = as.numeric(out$grade)
-  library(sqldf)
-  out = sqldf::sqldf("SELECT * FROM out ORDER BY CAST(GRADE AS NUMERIC) ")  
-  Plot = ggplot2::ggplot(data = out, ggplot2::aes(x = .data$grade, 
-                                                  y = .data$Coeff, 
-                                                  ymin = .data$ci.CI.Lower , 
-                                                  ymax = .data$ci.CI.Upper)) +
+    axis.text.x = element_text(angle = 90, vjust = 0.5 ),
+    legend.position = "bottom"
+  )
+  
+  out$grade <- as.integer(out$grade)
+  out$grade_name <- sapply(out$grade, get_school_stage) #get_school_stage(out$grade)
+  out$grade_name <- factor(out$grade_name, levels = unique(out$grade_name)[order(unique(out$grade))])
+  print_conf_level = paste0(conf_level*100, '%')
+  # Define confidence interval multiplier based on confidence level
+  if (conf_level == 0.95) {
+    conf_mult <- 1.96
+  } else if (conf_level == 0.90) {
+    conf_mult <- 1.645
+  } else if (conf_level == 0.85) {
+    conf_mult <- 1.44
+  } else {
+    stop("Invalid confidence level. Please choose 0.95, 0.90, or 0.85.")
+  }
+  # Compute y-axis limits based on standard errors and confidence interval multiplier
+  y_lims <- c(min(out$Coeff - conf_mult * out$Std..Err.), 
+              max(out$Coeff + conf_mult * out$Std..Err.)) * 1.05
+  
+  out$ci.CI.Lower = (out$Coeff - conf_mult * out$Std..Err.)
+  out$ci.CI.Upper = (out$Coeff + conf_mult * out$Std..Err.)
+  
+  Plot <- ggplot2::ggplot(data = out, ggplot2::aes(x = .data$grade_name,
+                                                   y = .data$Coeff, 
+                                                   ymin = .data$ci.CI.Lower , 
+                                                   ymax = .data$ci.CI.Upper)) +
     theme_light()  + ggplot2::geom_point( size = 1.8) + ggplot2::geom_errorbar() +
-      ggplot2::theme(  plot.title = element_text(hjust = 0.5, vjust = 0.5),
-                       axis.line.x = element_line(color="steelblue4", size = 0.5),
-                       axis.line.y = element_line(color="steelblue4", size = 0.5)) +
-      ggplot2::ggtitle(TITULO) +
-      ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-    ggplot2::labs(y = "Point Estimate and 95% Confidence Interval", 
-                  x = "Event Time", color = "Estimator") 
-  P =  Plot +      mynamestheme  
-  print(P  )
+    scale_x_discrete() +
+    ggplot2::theme(
+      plot.title = element_text(hjust = 0.5, vjust = 0.5),
+      axis.line.x = element_line(color="steelblue4", size = 0.5),
+      axis.line.y = element_line(color="steelblue4", size = 0.5)
+    ) +
+    ggplot2::ggtitle(TITULO) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+    ggplot2::labs(y = paste0("Point Estimate and ",print_conf_level," Confidence Interval\n Dropout rate"), 
+                   color = "Estimator") +xlab("Scholar Grade")
+  
+  P <- Plot + mynamestheme  
+  print(P)
 }
+ 
+
+
 
 rd_table <- function(rd_model) {
   rd_model = model
@@ -163,3 +187,76 @@ rd_table <- function(rd_model) {
   return(table_str)
 }
  
+
+
+
+
+
+bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_level = 0.95 ) {
+  maximo =  round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.9))) /100) * 100
+  minimo = round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.05))) /100) * 100
+  # Estimate RDD model for a range of bandwidths
+  
+  bw_range <- seq(minimo, maximo, by = minimo/10) # define range of bandwidths
+  te_estimates <- vector() # initialize vector to store treatment effect estimates
+  se_estimates <- vector()
+  
+  if (conf_level == 0.95) {
+    conf_mult <- 1.96
+  } else if (conf_level == 0.90) {
+    conf_mult <- 1.645
+  } else if (conf_level == 0.85) {
+    conf_mult <- 1.44
+  } else {
+    stop("Invalid confidence level. Please choose 0.95, 0.90, or 0.85.")
+  }
+  pb <- txtProgressBar(min = 0, max = length(bw_range), style = 3)
+  for (bw in bw_range) {
+    
+    model <-  rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , h = c(bw, bw) )
+    # summary(model)
+    #rdrobust(data$dropout_rate_t1 ~ rdropt(data$distance, cutpoint = 0, bw = bw), data = data, covs = NULL)
+    te_estimates <- c(te_estimates, model$Estimate[1])
+    se_estimates <- c(se_estimates, model$Estimate[3])
+    setTxtProgressBar(pb, which(bw_range == bw) )
+  }
+  Tempo <- data.frame(bw_range, te_estimates, se_estimates)
+  
+  y_lims <- c(min(Tempo$te_estimates  - conf_mult * Tempo$se_estimates), 
+              max(Tempo$te_estimates  + conf_mult * Tempo$se_estimates)) * 1.05
+  
+  Tempo$ci_low = (Tempo$te_estimates  - conf_mult * Tempo$se_estimates)
+  Tempo$ci_high = (Tempo$te_estimates  + conf_mult * Tempo$se_estimates)
+  
+  row_index <- which(sign(Tempo$ci_low) == sign(Tempo$ci_high))[1]
+  
+  # Combine the data into a data frame
+  # Define color scale for the line
+  colors <- viridisLite::inferno(length(Tempo$te_estimates))
+  
+  # Define the plot
+  P =  ggplot(Tempo, aes(x = bw_range, y = te_estimates, color = bw_range)) +
+    geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.5, size = 0.5) +
+    geom_line(size = 1.0) +
+    scale_color_gradientn(colors = colors, limits = c(min(Tempo$bw_range), Tempo[row_index, 1] ),
+                          name = "Bandwidth Sensitivity Estimates") +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
+    ggplot2::geom_vline(xintercept = Tempo[row_index, 1], linetype = "dashed", size = 0.5) +
+    scale_x_continuous("Bandwidth Range", expand = c(0.02, 0)) +
+    scale_y_continuous("TE Estimates", expand = c(0.02, 0)) +
+    theme(panel.background = element_rect(fill = "white"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.text = element_text(size = 12),
+          axis.title = element_text(size = 14, face = "bold"),
+          legend.key.size = unit(1, 'cm'), #change legend key size
+          legend.key.height = unit(1, 'cm'), #change legend key height
+          legend.key.width = unit(1, 'cm'), #change legend key width
+          legend.position = "bottom",
+          legend.title = element_text(size = 12),
+          legend.text = element_text( vjust = 0.2, face="bold", family = "Tahoma",angle = 270, size = 10)) +
+    labs(title = "Regression Discontinuity Design",
+         subtitle = paste0("TE Estimates with", conf_level*100 ,"% Confidence Intervals") )
+  print(P)
+  return(Tempo[row_index-1, 1] )
+  }

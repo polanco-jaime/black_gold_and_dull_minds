@@ -1,0 +1,18 @@
+\begin{table}[htbp]\centering
+ \footnotesize 
+% \caption{Regression Discontinuity Estimates}
+\begin{tabular}{lccccc}
+\hline\hline
+Method & Coef. & Std. Err. & z & P$>|$z$|$ & [95\% C.I.] \\ 
+\hline \hline  
+Conventional & -0.306 & 0.145 & -2.108 & 0.035 & [-0.591,-0.022] \\ 
+ Bias-Corrected & -0.252 & 0.145 & -1.735 & 0.083 & [-0.537,0.033] \\ 
+Robust & -0.252 & 0.230 & -1.097 & 0.273 & [-0.702,0.198] \\ 
+  \hline\hline
+\end{tabular}
+\label{table:rd}
+\begin{tablenotes} 
+  \justifying \tiny \textbf{Note: }    
+   The analysis is based on a sample of 94 observations, with 51 located within the area of exploration announcement ($A^{T}$) and 43 located near the border but outside the area of exploration  ($A^{c}$). 
+           We employ a Triangular kernel and the variance-covariance matrix estimator is computed with nearest neighbor variance estimator for heteroskedasticity-robust. The global polynomial fit in  $A^{T}$ and $A^{c}$ is of order 1, the bandwith where the global polynomial fit is of 1283.479 meters.. We estimate all coefficients using conventional, bias-corrected, and robust estimators, and we cluster standard errors at the school level. \end{tablenotes} 
+ \end{table} 

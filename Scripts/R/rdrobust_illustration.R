@@ -18,28 +18,99 @@ source("./Scripts/R/Reading_data.R")
 source("./Scripts/R/functions.R")
 attach(df)
 
-
+"
+This code creates a set of models using a geographic regression discontinuity design (GRDD)
+for different grades. First, it filters the data based on a distance variable,
+and then it subsets the data by grade. The RDD models are estimated using the rdrobust package, 
+and the resulting tables and graphs are saved. Finally,
+a summary table of the results is created by appending the results of each model to a data frame.
+"
 
 ############################################
-## Inference
+## General Inference 
 ###########################################
+"
+In a regression discontinuity design (RDD), 
+the bandwidth is the range of values around the cutoff point where observations are included in the analysis. 
+The choice of bandwidth can have a significant impact on the estimated treatment effect in an RDD. 
+Bandwidth sensitivity refers to the degree to which the estimated treatment effect changes as the bandwidth is varied.
+A bandwidth is said to be sensitive if the estimated treatment effect changes substantially as the bandwidth is varied.
+Therefore, it is important to perform sensitivity analyses with different bandwidths in order to assess the robustness of the estimated treatment effect.
+"
+data =df
+data <- data[data$distance >= -10000 & data$distance <= 10000,]
 Running_variable <- 'distance'
-Outcome <- 'dropout_rate_t2'
+Outcome <- 'dropout_rate_t1'
+q_= 'q_all'
+
+est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
+summary(est)
+ 
+model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
+                 subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+                 kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+       subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+       binselect="esmv", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+
+summary(model)
+
+bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_variable, conf_level = 0.95 )
+
+rd_table_latex = rd_table(model)
+# writeLines( text = rd_table_latex,            paste0(tables_dir,get_school_stage(grade) ,q_, Outcome, ".tex") )
+
+ 
+
+grades <- c('1' , '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'  )
+for (grade in grades) {
+  png(paste0(graphs_dir,get_school_stage(grade) ,'_bandwidth_sensibility_test', ".png"),  width = 1030, height = 598)
+  bandwidth_sensibility_test(data= subset(data, data$GRADO ==grade),
+                             Outcome=Outcome, Running_variable=Running_variable, conf_level = 0.95 )
+  dev.off() 
+  
+}
+
+ 
+
+
+  
+ 
+# cat( paste0( 
+#   sprintf(" \\begin{frame}{General Results by %s} \n %s \n \\end{frame} \n  ", get_school_stage(grade), 
+#              rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )  )
+# 
+
+png(paste0(graphs_dir, q_,Outcome, ".png"),  width = 1030, height = 598)
+rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+       subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+       binselect="es", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+dev.off() 
  
 ###########################################
-## Single estimation by grade
+## Single estimation by grade with all samples 
 ############################################
 data =df
-# data <- data[data$Q_artyl > 2 ,]
-data <- data[data$distance >= -10000 & data$distance <= 10000,]
-# data <- data[data$Q_artyl <= 2,]
+
+
+Running_variable <- 'distance'
+Outcome <- 'dropout_rate_t1'
+# data <- data[data$distance >= -10000 & data$distance <= 10000,]
 grades <- c('1' , '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'  )
 Table_result_ = data.frame()
 modelos = list()
 q_= 'q_all'
+
+
+"
+This begins a for loop that iterates over each element in the 'grades'
+vector and assigns each element to the variable 'grades'
+"
+
 for (grade in grades) {
   # print(grade)
   tempo  =  data[data$GRADO == grade,]
+  # hist(tempo$distance)
   model = rdrobust(y=tempo[[Outcome]] , x=tempo[[Running_variable]] , all=TRUE)
   modelos[[get_school_stage(grade)]] <- (model)
   est =model
@@ -48,37 +119,189 @@ for (grade in grades) {
              kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
   rd_table_latex = rd_table(model)
   writeLines( text = rd_table_latex, 
-              paste0(tables_dir,get_school_stage(grade) ,q_, ".tex") )
-  tables_dir
-  A =summary(model)
-  cat( paste0( 
-    sprintf(" \\begin{frame}{General Results by %s} \n %s \n \\end{frame} \n  ", get_school_stage(grade), 
-               rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )  )
+              paste0(tables_dir,get_school_stage(grade) ,q_, Outcome, ".tex") )
+   
+  # summary(model)
+  pic_in_frame = paste0( "\\begin{center} \n \\includegraphics[scale=0.2]{Graph/", get_school_stage(grade) ,q_,Outcome, ".png }\n \\end{center}  " )
+   
+  latex_frame = paste0( 
+    sprintf(" \\begin{frame}{General Results by %s} \n %s \n %s \n \\end{frame} \n  ", get_school_stage(grade), pic_in_frame,
+               rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )
   
+  cat(latex_frame)
+
   
-  png(paste0(graphs_dir,get_school_stage(grade) ,q_, ".png"),  width = 1030, height = 598)
+  png(paste0(graphs_dir,get_school_stage(grade) ,q_,Outcome, ".png"),  width = 1030, height = 598)
   rdplot(y=tempo[[Outcome]], x=tempo[[Running_variable]],c =0,
          subset=-est$bws[1,1]<= tempo[[Running_variable]]  & tempo[[Running_variable]]  <= est$bws[1,2],
          binselect="esmv", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
   dev.off() 
-  
-  # rd_table(model)
-  # summary(model)
-  # summary(model)
+ 
   tempo = Table_result(model)
   tempo$grade = grade
   tempo$estiamtion = row.names(tempo)
   rownames(tempo) <- NULL
   Table_result_ = rbind(Table_result_, tempo )
 }
- 
- 
-summary_plot(subset(Table_result_, Table_result_$estiamtion == "Robust") )
-summary_plot(subset(Table_result_, Table_result_$estiamtion == "Bias-Corrected") )
-summary_plot(subset(Table_result_, Table_result_$estiamtion == "Conventional") )
+
+png(paste0(graphs_dir,"Robust_all_grades_" ,q_, Outcome, ".png"), width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Robust"), conf_level=0.95, TITULO = 'Robust Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Bias-Corrected_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Bias-Corrected"), conf_level=0.95,
+             TITULO = 'Bias-Corrected Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Conventional_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Conventional"), conf_level=0.95,
+             TITULO = 'Conventional Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
 
 
+###########################################
+## Single estimation by grade focused the most exposed,
+# thus erolled when contract sign was in the first semester.
+############################################
+data =df
+Running_variable <- 'distance'
+Outcome <- 'dropout_rate_t2'
+data <- data[data$Q_artyl <= 2 ,]
 
+"
+This code creates a set of models using a geographic regression discontinuity design (GRDD)
+for different grades. First, it filters the data based on a distance variable,
+and then it subsets the data by grade. The RDD models are estimated using the rdrobust package, 
+and the resulting tables and graphs are saved. Finally,
+a summary table of the results is created by appending the results of each model to a data frame.
+"
+
+# data <- data[data$distance >= -10000 & data$distance <= 10000,]
+
+grades <- c('1' , '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'  )
+
+Table_result_ = data.frame()
+modelos = list()
+q_= 'q_1_2'
+
+
+for (grade in grades) {
+  # print(grade)
+  tryCatch( {
+  tempo  =  data[data$GRADO == grade,]
+  model = rdrobust(y=tempo[[Outcome]] , x=tempo[[Running_variable]] , all=TRUE)
+  modelos[[get_school_stage(grade)]] <- (model)
+  est =model
+  model = rdrobust(y=tempo[[Outcome]] , x=tempo[[Running_variable]], all=TRUE,
+                   subset=-est$bws[1,1]<= tempo[[Running_variable]]  & tempo[[Running_variable]]  <= est$bws[1,2],
+                   kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  summary(model)
+  rd_table_latex = rd_table(model)
+  writeLines( text = rd_table_latex, 
+              paste0(tables_dir,get_school_stage(grade) ,q_, ".tex") )
+   
+   
+  # cat( paste0( 
+  #   sprintf(" \\begin{frame}{General Results by %s} \n %s \n \\end{frame} \n  ", get_school_stage(grade), 
+  #           rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )  )
+  # 
+  # 
+
+  png(paste0(graphs_dir,get_school_stage(grade) ,q_,Outcome, ".png"),  width = 1030, height = 598)
+  rdplot(y=tempo[[Outcome]], x=tempo[[Running_variable]],
+         subset =-est$bws[1,1]<= tempo[[Running_variable]]  & tempo[[Running_variable]]  <= est$bws[1,2],
+         binselect="esmv", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  dev.off() 
+  }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")}
+  )
+   
+  
+  tempo = Table_result(model)
+  tempo$grade = grade
+  tempo$estiamtion = row.names(tempo)
+  rownames(tempo) <- NULL
+  Table_result_ = rbind(Table_result_, tempo )
+}
+
+png(paste0(graphs_dir,"Robust_all_grades_" ,q_, Outcome, ".png"), width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Robust"), conf_level=0.95, TITULO = 'Robust Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Bias-Corrected_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Bias-Corrected"), conf_level=0.95,
+             TITULO = 'Bias-Corrected Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Conventional_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Conventional"), conf_level=0.95,
+             TITULO = 'Conventional Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+#######################################################
+## Single estimation by grade focused the most exposed,
+# thus enrolled when contract sign was in the second semester.
+######################################################
+data =df
+Running_variable <- 'distance'
+Outcome <- 'dropout_rate_t2'
+data <- data[data$Q_artyl >= 3 ,]
+
+
+# data <- data[data$distance >= -10000 & data$distance <= 10000,]
+
+grades <- c('1' , '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'  )
+
+Table_result_ = data.frame()
+modelos = list()
+q_= 'q_3_4'
+
+
+for (grade in grades) {
+  # print(grade)
+  tempo  =  data[data$GRADO == grade,]
+  model = rdrobust(y=tempo[[Outcome]] , x=tempo[[Running_variable]] , all=TRUE)
+  modelos[[get_school_stage(grade)]] <- (model)
+  est =model
+  model = rdrobust(y=tempo[[Outcome]] , x=tempo[[Running_variable]], all=TRUE,
+                   subset=-est$bws[1,1]<= tempo[[Running_variable]]  & tempo[[Running_variable]]  <= est$bws[1,2],
+                   kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  summary(model)
+  rd_table_latex = rd_table(model)
+  writeLines( text = rd_table_latex, 
+              paste0(tables_dir,get_school_stage(grade) ,q_, ".tex") )
+  
+  
+  # cat( paste0( 
+  #   sprintf(" \\begin{frame}{General Results by %s} \n %s \n \\end{frame} \n  ", get_school_stage(grade), 
+  #           rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )  )
+  # 
+  # 
+  png(paste0(graphs_dir,get_school_stage(grade) ,q_,Outcome, ".png"),  width = 1030, height = 598)
+  rdplot(y=tempo[[Outcome]], x=tempo[[Running_variable]],c =0, 
+         subset=-est$bws[1,1]<= tempo[[Running_variable]]  & tempo[[Running_variable]]  <= est$bws[1,2],
+         binselect="esmv", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  dev.off() 
+  
+  tempo = Table_result(model)
+  tempo$grade = grade
+  tempo$estiamtion = row.names(tempo)
+  rownames(tempo) <- NULL
+  Table_result_ = rbind(Table_result_, tempo )
+}
+
+png(paste0(graphs_dir,"Robust_all_grades_" ,q_, Outcome, ".png"), width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Robust"), conf_level=0.95, TITULO = 'Robust Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Bias-Corrected_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Bias-Corrected"), conf_level=0.95,
+             TITULO = 'Bias-Corrected Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
+
+png(paste0(graphs_dir,"Conventional_all_grades_" ,q_,Outcome, ".png"),  width = 1030, height = 598)
+summary_plot(subset(Table_result_, Table_result_$estiamtion == "Conventional"), conf_level=0.95,
+             TITULO = 'Conventional Estiamtion of exploration announcement effect\n   on dropout rates' )
+dev.off() 
 
 
 ##
