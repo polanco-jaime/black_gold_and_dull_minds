@@ -37,21 +37,33 @@ Bandwidth sensitivity refers to the degree to which the estimated treatment effe
 A bandwidth is said to be sensitive if the estimated treatment effect changes substantially as the bandwidth is varied.
 Therefore, it is important to perform sensitivity analyses with different bandwidths in order to assess the robustness of the estimated treatment effect.
 "
-data =df
-data <- data[data$distance >= -10000 & data$distance <= 10000,]
+data =df_cov
+# data <- data[data$distance >= -10000 & data$distance <= 10000,]
 Running_variable <- 'distance'
 Outcome <- 'dropout_rate_t1'
 q_= 'q_all'
 
 est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
 summary(est)
- 
+
 model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
                  subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
                  kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+
+summary(model)
+
+png(paste0(graphs_dir,"general_result",  q_ ,Outcome, ".png"),  width = 1030, height = 598)
 rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
        subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
-       binselect="esmv", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+       binselect="es", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+dev.off() 
+
+png(paste0(graphs_dir,"general_result", Outcome ,q_, Outcome, ".png"),  width = 1030, height = 598)
+bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_variable, conf_level = 0.95 , full = 10)[2]
+dev.off()   
+
+
+
 
 summary(model)
 
@@ -59,8 +71,55 @@ bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_
 
 rd_table_latex = rd_table(model)
 # writeLines( text = rd_table_latex,            paste0(tables_dir,get_school_stage(grade) ,q_, Outcome, ".tex") )
+####################################################
+"
+Control and treated schools differ systematically in this covariate
+"
+
+data =df_cov
+data <- data[data$distance >= -10000 & data$distance <= 10000,]
+Running_variable <- 'distance'
+colnames(df_cov)
+Outcome_list = c(
+  "FRAC_FEMALE"   ,      "FRAC_MALE", "FRAC_NUEVO", "FRAC_REPITENTE" ,
+  "FRAC_SUBSIDIADO" , "FRAC_EDAD" ,"FRAC_ESTRATO_1" , "FRAC_ESTRATO_2" , 
+  "FRAC_ESTRATO_3","FRAC_ESTRATO_4","FRAC_ESTRATO_5" , "FRAC_ESTRATO_6"     
+)
+for (Outcome in Outcome_list) {
+  q_= 'q_all'
+  
+  est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
+  rd_table_latex = rd_table(est)
+  writeLines( text = rd_table_latex,  paste0(tables_dir,"cov_test_", Outcome ,q_, Outcome, ".tex") )
+  par(mfrow=c(1,2))
+  
+  png(paste0(graphs_dir,"cov_test_rdplot",  q_ ,Outcome, ".png"),  width = 1030, height = 598)
+  rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0, binselect="esmv", kernel="triangular",  p=1 )
+  dev.off() 
+  
+  png(paste0(graphs_dir,"cov_test_bws", Outcome ,q_, Outcome, ".png"),  width = 1030, height = 598)
+    bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_variable, conf_level = 0.95 , full = 2)[2]
+  dev.off()   
+}
+ 
+
+
+
+
 
  
+
+
+ 
+
+
+  
+
+####################################################
+"
+Sensibility test of bandwidth by all grades 
+"
+
 
 grades <- c('1' , '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'  )
 for (grade in grades) {
@@ -71,11 +130,6 @@ for (grade in grades) {
   
 }
 
- 
-
-
-  
- 
 # cat( paste0( 
 #   sprintf(" \\begin{frame}{General Results by %s} \n %s \n \\end{frame} \n  ", get_school_stage(grade), 
 #              rd_table_latex ) , "%-----------------------------------------% \n %-----------------------------------------%  \n" )  )

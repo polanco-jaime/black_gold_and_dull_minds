@@ -1,4 +1,5 @@
 ###### Fimction of homogenization the grade ######
+source("C:/Users/USER/Desktop/The Blessing of Oil Fields/Black Gold and Dull Minds/Scripts/R/rdplot_function_modifies.R")
 get_school_stage <- function(grade){
   grade <- as.integer(grade)
   if (grade <= 6){
@@ -83,7 +84,7 @@ summary_plot = function (out, conf_level = 0.95, TITULO = '') {
                                                    y = .data$Coeff, 
                                                    ymin = .data$ci.CI.Lower , 
                                                    ymax = .data$ci.CI.Upper)) +
-    theme_light()  + ggplot2::geom_point( size = 1.8) + ggplot2::geom_errorbar() +
+    theme_light()  + ggplot2::geom_point( size = 1.8) + ggplot2::geom_errorbar(width  = 0.1) +
     scale_x_discrete() +
     ggplot2::theme(
       plot.title = element_text(hjust = 0.5, vjust = 0.5),
@@ -189,15 +190,15 @@ rd_table <- function(rd_model) {
  
 
 
-
-
-
-bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_level = 0.95 ) {
+ 
+bandwidth_sensibility_test = function (data, Outcome, Running_variable, bw_mse=NULL, conf_level = 0.95 , full = NULL) {
   maximo =  round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.9))) /100) * 100
-  minimo = round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.05))) /100) * 100
+  minimo = 800 #round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.05))) /100) * 100
   # Estimate RDD model for a range of bandwidths
-  
-  bw_range <- seq(minimo, maximo, by = minimo/10) # define range of bandwidths
+  if( is.numeric(full) ==T){
+    iteraciones =  ifelse(full>=30,30, full)
+  }else{iteraciones =  30}
+  bw_range <- seq(minimo, maximo, by = minimo/iteraciones ) #/iteraciones) # define range of bandwidths
   te_estimates <- vector() # initialize vector to store treatment effect estimates
   se_estimates <- vector()
   
@@ -228,6 +229,8 @@ bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_lev
   Tempo$ci_low = (Tempo$te_estimates  - conf_mult * Tempo$se_estimates)
   Tempo$ci_high = (Tempo$te_estimates  + conf_mult * Tempo$se_estimates)
   
+  center_bw_effect =  mean(Tempo$ci_high + Tempo$ci_low )
+  
   row_index <- which(sign(Tempo$ci_low) == sign(Tempo$ci_high))[1]
   
   # Combine the data into a data frame
@@ -242,6 +245,9 @@ bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_lev
                           name = "Bandwidth Sensitivity Estimates") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
     ggplot2::geom_vline(xintercept = Tempo[row_index, 1], linetype = "dashed", size = 0.5) +
+    ggplot2::geom_vline(xintercept = bw_mse , linetype = "dashed", size = 0.5) +
+    annotate("text", x = bw_mse, y = center_bw_effect,  label = "MSE optimal bandwidth" , angle = 0 ,
+             color = "gray20", box.color = "gray20", box.fill = "white" )+ 
     scale_x_continuous("Bandwidth Range", expand = c(0.02, 0)) +
     scale_y_continuous("TE Estimates", expand = c(0.02, 0)) +
     theme(panel.background = element_rect(fill = "white"),
@@ -258,5 +264,158 @@ bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_lev
     labs(title = "Regression Discontinuity Design",
          subtitle = paste0("TE Estimates with", conf_level*100 ,"% Confidence Intervals") )
   print(P)
-  return(Tempo[row_index-1, 1] )
-  }
+  return( list(Tempo[row_index-1, 1] , P) )
+}
+
+
+
+# library(parallel)
+# 
+# bandwidth_sensibility_test = function (data, Outcome, Running_variable, conf_level = 0.95 ) {
+#   maximo =  round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.9))) /100) * 100
+#   minimo = round( as.numeric(quantile(  subset(data, data$distance>=0)$distance  , probs = c(0.05))) /100) * 100
+#   # Estimate RDD model for a range of bandwidths
+#   
+#   bw_range <- seq(minimo, maximo, by = minimo/10) # define range of bandwidths
+#   te_estimates <- numeric(length(bw_range)) # initialize vector to store treatment effect estimates
+#   se_estimates <- numeric(length(bw_range))
+#   
+#   if (conf_level == 0.95) {
+#     conf_mult <- 1.96
+#   } else if (conf_level == 0.90) {
+#     conf_mult <- 1.645
+#   } else if (conf_level == 0.85) {
+#     conf_mult <- 1.44
+#   } else {
+#     stop("Invalid confidence level. Please choose 0.95, 0.90, or 0.85.")
+#   }
+#   
+#   cl <- makeCluster(detectCores()) # create a cluster using all available cores
+#   # pb <- txtProgressBar(min = 0, max = length(bw_range), style = 3)
+#   clusterExport(cl, c("data", "Outcome", "Running_variable", "bw_range", "conf_mult")) # export variables to cluster
+#   
+#   te_se_estimates <- clusterApply(cl, bw_range, function(bw) {
+#     library(rdrobust)
+#     model <-  rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , h = c(bw, bw) )
+#     te_estimate <- model$Estimate[1]
+#     se_estimate <- model$Estimate[3]
+#     # setTxtProgressBar(pb, which(bw_range == bw) )
+#     return(c(te_estimate, se_estimate))
+#   })
+#   
+#   te_estimates <- unlist(lapply(te_se_estimates, `[`, 1)) # extract treatment effect estimates from list
+#   se_estimates <- unlist(lapply(te_se_estimates, `[`, 2)) # extract standard error estimates from list
+#   
+#   stopCluster(cl) # stop the cluster to free up resources
+#   
+#   Tempo <- data.frame(bw_range, te_estimates, se_estimates)
+#   
+#   y_lims <- c(min(Tempo$te_estimates  - conf_mult * Tempo$se_estimates), 
+#               max(Tempo$te_estimates  + conf_mult * Tempo$se_estimates)) * 1.05
+#   
+#   Tempo$ci_low = (Tempo$te_estimates  - conf_mult * Tempo$se_estimates)
+#   Tempo$ci_high = (Tempo$te_estimates  + conf_mult * Tempo$se_estimates)
+#   
+#   
+#   row_index <- which(sign(Tempo$ci_low) == sign(Tempo$ci_high))[1]
+#   
+#   # Combine the data into a data frame
+#   # Define color scale for the line
+#   colors <- viridisLite::inferno(length(Tempo$te_estimates))
+#   
+#   # Define the plot
+#   P =  ggplot(Tempo, aes(x = bw_range, y = te_estimates, color = bw_range)) +
+#     geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.5, size = 0.5) +
+#     geom_line(size = 1.0) +
+#     scale_color_gradientn(colors = colors, limits = c(min(Tempo$bw_range), Tempo[row_index, 1] ),
+#                           name = "Bandwidth Sensitivity Estimates") +
+#     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
+#     ggplot2::geom_vline(xintercept = Tempo[row_index, 1], linetype = "dashed", size = 0.5) +
+#     scale_x_continuous("Bandwidth Range", expand = c(0.02, 0)) +
+#     scale_y_continuous("TE Estimates", expand = c(0.02, 0)) +
+#     theme(panel.background = element_rect(fill = "white"),
+#           panel.grid.major = element_blank(),
+#           panel.grid.minor = element_blank(),
+#           axis.text = element_text(size = 12),
+#           axis.title = element_text(size = 14, face = "bold"),
+#           legend.key.size = unit(1, 'cm'), #change legend key size
+#           legend.key.height = unit(1, 'cm'), #change legend key height
+#           legend.key.width = unit(1, 'cm'), #change legend key width
+#           legend.position = "bottom",
+#           legend.title = element_text(size = 12),
+#           legend.text = element_text( vjust = 0.2, face="bold", family = "Tahoma",angle = 270, size = 10)) +
+#     labs(title = "Regression Discontinuity Design",
+#          subtitle = paste0("TE Estimates with", conf_level*100 ,"% Confidence Intervals") )
+#   print(P)
+#   return( list(Tempo[row_index-1, 1] , P) )
+# }
+
+
+model_outputs_plot <- function(est, data, Running_variable, Outcome ){
+  data$area <- ifelse(data[[Running_variable]] < 0, "Control area", "Treatment area")
+  bw_ = data[data[[Running_variable]] >= -est$bws[1,2] , ]
+  bw_ = bw_[bw_[[Running_variable]] <= est$bws[1,1] , ]
+  
+  model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
+                   subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+                   kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  
+  control_mean = mean( bw_[bw_[[Running_variable]] <= 0 , ][[Outcome]] , na.rm = T)
+  treatment_mean = mean( bw_[bw_[[Running_variable]] > 0 , ][[Outcome]] , na.rm = T)
+  ate = round(model$coef[3], 4)
+  se_ate = round( model$se [3] , 3)
+  
+  h = est$bws[1,1]
+  round(-h+ (h/5)/100) * 100
+  breaks_ =  c(round((-h )/100) * 100,
+               round((-h+ (h/5))/100) * 100 ,
+               round((-h+ (h/3))/100) * 100 ,
+               round((-h+ (h/2))/100) * 100,  
+               round((-h+ (h/1.5))/100) * 100,
+               round((-h+ (h/1.2))/100) * 100,  
+               0,
+               round((h- (h/1.2))/100) * 100 , 
+               round((h- (h/1.5))/100) * 100 , 
+               round((h- (h/2))/100) * 100 , 
+               round((h- (h/3))/100)* 100 ,
+               round((h- (h/5))/100)* 100 ,
+               round((h )/100) * 100)
+  
+  labels_ = c(round((-h )/100) * 100,
+              round((-h+ (h/5))/100) * 100 ,
+              "\n \n Control area",
+              round((-h+ (h/2))/100) * 100,  
+              round((-h+ (h/1.5))/100) * 100,
+              round((-h+ (h/1.2))/100) * 100,  
+              0,
+              round((h- (h/1.2))/100) * 100 , 
+              round((h- (h/1.5))/100) * 100 , 
+              round((h- (h/2))/100) * 100 , 
+              "\n \n Treatment area" ,
+              round((h- (h/5))/100)* 100 ,
+              round((h )/100) * 100)
+  
+  Graph_plot  = rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+                       subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+                       binselect="es", kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
+  box_text = paste0("Relative effect = ", round(ate / control_mean,3),
+                    "\n", "ATE (se) = ", ate," (", se_ate, ")\n ",
+                    "Mean of controls = ", round( control_mean,3) )
+  plot_graph = Graph_plot[[2]]  +
+    xlab("Distance from Exploration Border under an E&P contract (m) ") + 
+    ylab("Effect on Dropout Rate (percentage points)") + 
+    scale_x_continuous(breaks = breaks_, labels =  labels_) 
+
+    # scale_x_continuous(labels = function(x) ifelse(x < 100, paste0(abs(x), "\nControl area"), paste0(x, "\nTreatment area"))) 
+
+  bloxplot_ = geom_text(aes(x =  - h + h /2 , y = treatment_mean -  treatment_mean/5 , 
+                            label = box_text), 
+                        size = 4, color = "black", fill = "white", 
+                        hjust = 0.5, vjust = -1.5)
+  #     
+  
+  print(plot_graph +  bloxplot_)
+  
+  return( list(plot_graph+  bloxplot_ , h))
+}
+

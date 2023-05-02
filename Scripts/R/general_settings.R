@@ -11,13 +11,13 @@ for (i in 1:length(packageList) ) {
   }
   lapply(packageList[i], library, character.only = TRUE)
 }
-# Import all fonts
-font_import()
-loadfonts(device = "win")
+# # Import all fonts
+# font_import()
+# loadfonts(device = "win")
 
 # Authenticate user
 project <- "ph-jabri"
-bq_auth() #use_oob = TRUE
+# bq_auth(path = "eng.pepj@gmail.com" ) #use_oob = TRUE
 
 
 
