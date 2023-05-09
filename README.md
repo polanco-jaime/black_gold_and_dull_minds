@@ -4,6 +4,6 @@ This study investigates the impact of oil exploration announcements on dropout r
 :paperclip: FBlack Gold and Dull Minds: The Impact of Oil Exploration Announcements on Education in Colombia
  
 - :file_folder: __Files__:
-     + [Working paper](WP_ Black_Gold_and_Dull_Minds.pdf)
-     + [Slides paper](P_ Black_Gold_and_Dull_Minds.pdf) 
+     + [Working paper](WP_Black_Gold_and_Dull_Minds.pdf)
+     + [Slides paper](P_Black_Gold_and_Dull_Minds.pdf) 
      + [R Scriptts](Scripts)
