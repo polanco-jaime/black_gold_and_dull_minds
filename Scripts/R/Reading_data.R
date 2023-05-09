@@ -67,4 +67,5 @@ df$distance = df$distance_to_polygon
 
 df$FRAC_ESTRATO_1_2 = df$FRAC_ESTRATO_1+df$FRAC_ESTRATO_2
 df$FRAC_ESTRATO_3_4 = df$FRAC_ESTRATO_3+df$FRAC_ESTRATO_4
-
+ 
+# df <- df[df$Q_artyl<=3, ]

@@ -714,8 +714,27 @@ df_to_latex <- function(df, caption = NULL, NOTES =NULL) {
   # cat(table_str)
   return(table_str)
 }
+homogenization_values_control <- function(string){
+  
+  A = gsub(string , pattern = "" , replacement = "")
+  
+  A = gsub(A , pattern = "EMIGRATED_OUT_AC_AT_" , replacement = "EMIGRATED OUT $A^C$ $A^T$ ")
+  A = gsub(A , pattern = "FEMALE_DROPOUT_" , replacement = "FEMALE DROPOUT RATE ")
+  A = gsub(A , pattern = "DESERTO_" , replacement = "DROPOUT RATE ")
+  A = gsub(A , pattern = "MALE_DROPOUT_" , replacement = "MALE DROPOUT RATE ")
+  A = gsub(A , pattern = "FRAC_ESTRATO_1_2" , replacement = "LOW ECONOMIC LEVEL")
+  A = gsub(A , pattern = "REPITENTE" , replacement = "REPEATERS ")
+  A = gsub(A , pattern = "NUEVO" , replacement = "NEW STUDENTS")
+  A = gsub(A , pattern = "SUBSIDIADO" , replacement = "SUBSIDIZED")
+  A = gsub(A , pattern = "FRAC_ESTRATO_3_4" , replacement = "MEDIUM ECONOMIC LEVEL")
+  A = gsub(A , pattern = "EDAD" , replacement = "AGE")
+  A = gsub(A , pattern = "_" , replacement = " ")
+  # A = gsub(A , pattern = "" , replacement = "")
+  return(A)
+}
 
 picture_to_latex <- function(saved_in, name = '', level = 'elementary' ) {
+  name = homogenization_values_control(name)
   if (level == 'elementary') {
     Graph_ = " \\includegraphics[scale=0.46]{Graph/Elementary_school/"
   }else{
@@ -726,6 +745,7 @@ picture_to_latex <- function(saved_in, name = '', level = 'elementary' ) {
   table_str <- paste0( table_str, " \\begin{center} \n "  )
   table_str <-   paste0(table_str,  Graph_ , saved_in, "}\n \\end{center} ")
   table_str <-   paste0(table_str,  "\n \\end{frame} ")
+ 
   cat(table_str)
 }
 

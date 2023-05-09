@@ -31,6 +31,7 @@ for (i in variable_list) {
   descriptive_table = rbind(temp, descriptive_table)
 }
 cat(df_to_latex(descriptive_table))
+
 A = gsub(df_to_latex(descriptive_table) , pattern = "" , replacement = "")
 
 A = gsub(A , pattern = "EMIGRATED_OUT_AC_AT_" , replacement = "EMIGRATED OUT $A^C$ $A^T$ ")
@@ -47,8 +48,7 @@ A = gsub(A , pattern = "_" , replacement = " ")
 # A = gsub(A , pattern = "" , replacement = "")
 
 cat(A  )
- 
- 
+
 library(stringr)
 
 #################
