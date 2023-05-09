@@ -22,40 +22,7 @@ source("./Scripts/R/functions.R")
 attach(df)
 #df = df1 
 # Data
-variation = c("T1", "T2", "TL1")
-Columnas =  c("DESERTO_", "STILL_SAME_SCHOOL_", "EMIGRATED_", "IMIGRATED_",
-              "EMIGRATED_OUT_AC_AT_", "MALE_DROPOUT_","FEMALE_DROPOUT_" )
-Totals = c( "ESTU_TOTALES_")
-
-for (period in variation) {
-  if (period != "TL1") {
-    for (column_ in Columnas) {
-      columna_ = paste0(column_, period)
-      Tot_rate = paste0(Totals, period)
-      print(columna_ )
-      print(Tot_rate)
-      df[[ columna_  ]]  =  df[[ columna_  ]] / df[[ Tot_rate  ]]
-    }
-  } else{
-    for (column_ in c("DESERTO_", "STILL_SAME_SCHOOL_", "EMIGRATED_", "IMIGRATED_")) {
-      columna_ = paste0(column_, period)
-      Tot_rate = paste0(Totals, period)
-      print(columna_ )
-      print(Tot_rate)
-      df[[ columna_  ]]  =  df[[ columna_  ]] / df[[ Tot_rate  ]]
-    }
-  }
-  
-}
-library(dplyr)
-# df <- df %>%
-#   filter(distance_to_polygon < -1000 | distance_to_polygon > 1000)
-
-df$distance = df$distance_to_polygon 
-
-df$FRAC_ESTRATO_1_2 = df$FRAC_ESTRATO_1+df$FRAC_ESTRATO_2
-df$FRAC_ESTRATO_3_4 = df$FRAC_ESTRATO_3+df$FRAC_ESTRATO_4
-
+level = 'elementary'
 
 ############################################
 ## General Inference 
@@ -65,8 +32,10 @@ df$FRAC_ESTRATO_3_4 = df$FRAC_ESTRATO_3+df$FRAC_ESTRATO_4
 data =df
 data = subset(data, data$GRADO_ <= 5)
 data = subset(data, data$GRADO_ >= 0)
+table(data$GRADO)
+
 library(haven)
-haven::write_dta(data,paste0(data_dir,"elementary_school_data.dta") )
+# haven::write_dta(data,paste0(data_dir,"elementary_school_data.dta") )
 Running_variable <- 'distance'
 Outcome <- 'DESERTO_T1'
 q_= 'q_all'
@@ -76,7 +45,7 @@ est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
 summary(est)
 model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
                  subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
-                 kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=2 )
+                 kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
 
 summary(model)
 "In this case, a one unit decrease in the ATE is associated with a 32.68% 
@@ -85,26 +54,91 @@ rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
        subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
        binselect="es", kernel="triangular",
        h=c(est$bws[1,1], est$bws[1,2]),  p=1 )
-
-png(paste0(graphs_dir,"general_result",  q_ ,Outcome, ".png"),  width = 1030, height = 598, res = 100)
+ 
+png(paste0(graphs_dir,"general_result_",Outcome, "_", q_ , ".png"),  width = 1030, height = 598, res = 105 )
 model_pic  <- model_outputs_plot(est= est, data = data, Running_variable, Outcome)
 dev.off()
+
+picture_to_latex(paste0("general_result_",Outcome, "_", q_ , ".png" ) ,  
+                 name = "General Result in Elementary School", level = level)
+
 bw_inference = model_pic[[2]]
-png(paste0(graphs_dir,"general_result", Outcome ,q_, Outcome, ".png"),  width = 1030, height = 598, res = 100)
+
+png(paste0(graphs_dir,"bw_sensibility_", Outcome ,"_",q_,  ".png"),  width = 1030, height = 598, res = 100)
 bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_variable,
                            bw_mse = bw_inference,
                            conf_level = 0.95 , full = 30)[2]
 dev.off()
 
+
+picture_to_latex(paste0("bw_sensibility_", Outcome ,"_",q_,  ".png") ,  
+                 name = "General Bandwidth sensibility test in Elementary School", level = level)
+
+
 rd_table_latex = rd_table(model)
 cat(rd_table_latex)
-writeLines( text = rd_table_latex,         
-            paste0(tables_dir,"_general_result_" ,q_, Outcome, ".tex") )
-####################################################
+writeLines( text = rd_table_latex, paste0(tables_dir,"general_result_" , Outcome, "_",q_, ".tex") )
+
+##################
+"General Effect by gender"
+##################
+
+Running_variable <- 'distance'
+Outcome_male <- 'MALE_DROPOUT_T1'
+Outcome_female <- 'FEMALE_DROPOUT_T1'
+
+
+"EFFECT ON BOYS "
+est_male = rdrobust(y=data[[Outcome_male]] , x=data[[Running_variable]] , all=TRUE)
+
+png(paste0(graphs_dir,"general_result_",Outcome_male, "_", q_ , ".png"),  width = 1030, height = 598, res = 100)
+model_pic_male = model_outputs_plot(est= est_male, data = data, Running_variable, Outcome_male)
+dev.off()
+
+picture_to_latex(paste0("general_result_",Outcome_male, "_", q_ , ".png" ) ,  
+                 name = "Dropout of males in Elementary School", level = level)
+
+ 
+png(paste0(graphs_dir,"bw_sensibility_", Outcome_male ,"_",q_,  ".png"),  width = 1030, height = 598, res = 100)
+bandwidth_sensibility_test(data= data,Outcome=Outcome_male, Running_variable=Running_variable,
+                           bw_mse = model_pic_male[[2]],
+                           conf_level = 0.95 , full = 30)[2]
+dev.off() 
+
+picture_to_latex(paste0("bw_sensibility_", Outcome_male ,"_",q_,  ".png" ) ,  
+                 name = "Bandwidth sensibility test of males in Elementary School", level = level)
+
+
+writeLines( text = rd_table(model_pic_male[[3]]), 
+            paste0(tables_dir,"general_result_" , Outcome_male, "_",q_, ".tex") )
+
+
+"EFFECT ON  GIRLS "
+est_female = rdrobust(y=data[[Outcome_female]] , x=data[[Running_variable]] , all=TRUE)
+# summary(est_female)
+png(paste0(graphs_dir,"general_result_",Outcome_female, "_", q_ , ".png"),  width = 1030, height = 598, res = 100)
+model_pic_female = model_outputs_plot(est= est_female, data = data, Running_variable, Outcome_female)
+dev.off()
+
+picture_to_latex(paste0("general_result_",Outcome_female, "_", q_ , ".png" ) ,  
+                 name = "Dropout of females in Elementary School", level = level)
+
+png(paste0(graphs_dir,"bw_sensibility_", Outcome_female ,"_",q_,  ".png"),  width = 1030, height = 598, res = 100)
+bandwidth_sensibility_test(data= data,Outcome=Outcome_female, Running_variable=Running_variable,
+                           bw_mse = model_pic_female[[2]],
+                           conf_level = 0.95 , full = 30)[2]
+dev.off()
+picture_to_latex(paste0("bw_sensibility_", Outcome_female ,"_",q_,  ".png" ) ,  
+                 name = "Bandwidth sensibility test of females in Elementary School", level = level)
+
+writeLines( text = rd_table(model_pic_female[[3]]),  paste0(tables_dir,"general_result_" , Outcome_female, "_",q_, ".tex") )
+#####################################################
+
 "
-Control and treated schools differ systematically in this covariate
+Control and treated schools differ systematically in this covariate?
 "
 summary(lm(data=subset(data, data$IS_IN_T1 ==T), DESERTO_T1~DESERTO_TL1) )
+
 Running_variable <- 'distance'
 colnames(data)
 Outcome_list = c(
@@ -116,91 +150,147 @@ for (Outcome in Outcome_list) {
   q_= 'q_all'
   
   est_model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
-  rd_table_latex = rd_table(est)
-  
-  
-  png(paste0(graphs_dir,"cov_test_rdplot",  q_ ,Outcome, ".png"),  width = 1030, height = 598, res = 100)
+   
+  png(paste0(graphs_dir,"cov_test_rdplot_",  q_ ,Outcome, ".png"),  width = 1030, height = 598, res = 100)
   model_pic  <- model_outputs_plot(est= est_model, data = data, Running_variable, Outcome)
   dev.off() 
   
-  png(paste0(graphs_dir,"cov_test_bws", Outcome ,q_, Outcome, ".png"),  width = 1030, height = 598, res = 100)
+  png(paste0(graphs_dir,"cov_test_bws_", Outcome,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
   bandwidth_sensibility_test(data= data,Outcome=Outcome, Running_variable=Running_variable,
                              bw_mse = bw_inference,
                              conf_level = 0.95 , full = 15)[2]
   dev.off()
   
   
-  writeLines( text = rd_table_latex,  paste0(tables_dir,"cov_test_", Outcome ,q_, Outcome, ".tex") )
+  writeLines( text = rd_table_latex,  paste0(tables_dir,"cov_test_", Outcome, "_" ,q_,  ".tex") )
   par(mfrow=c(1,2))
 
 }
 
-
-
 ############################################
-## Results by grade in Elementary School 
+##  Inference by grade 
 ###########################################
 grades <- c('1' , '2', '3', '4', '5'  )
-data =df
-data = subset(data, data$GRADO_ <= 5)
-data = subset(data, data$GRADO_ >= 0)
-table(data$GRADO)
-
-for (grade in grades) {
-print(
-  summary( lm(data = subset(data, data$distance <= bw_inference & 
-                            data$distance >=  -bw_inference & data$GRADO == grade),
-   DESERTO_T1 ~ IS_IN_T1 )
-      )
-)
-}
-Running_variable <- 'distance'
-Outcome <- 'DESERTO_T1'
-# data <- data[data$distance >= -10000 & data$distance <= 10000,]
-
-Table_result_ = data.frame()
-modelos = list()
-q_= 'q_all'
-
-
-"
-This begins a for loop that iterates over each element in the 'grades'
-vector and assigns each element to the variable 'grades'
-"
 
 Running_variable <- 'distance'
+Outcome_male <- 'MALE_DROPOUT_T1'
+Outcome_female <- 'FEMALE_DROPOUT_T1'
 Outcome <- 'DESERTO_T1'
-q_= 'q_all'
-# window = 800
-for (grade in grades) {
-  data_ = subset(data, data$GRADO==grade)
-  # data_ <- subset(data_, data_[[Running_variable]] < -window | data_[[Running_variable]] > window)
-  # data_$distance <- ifelse(data_[[Running_variable]] > 0, data_[[Running_variable]] - window, data_[[Running_variable]] + window)
+
+
+if (1==1) {
+  data =df
+  data = subset(data, data$GRADO_ <= 5)
+  data = subset(data, data$GRADO_ >= 0)
+  q_= 'q_all'
+  png(paste0(graphs_dir,"Inference_by_grade_", Outcome,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+  summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                             Outcome = Outcome , conf_level = 0.9,
+                             TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+  dev.off()
   
   
-  est = rdrobust(y=data_[[Outcome]] , x=data_[[Running_variable]] , all=TRUE)
-  model = rdrobust(y=data_[[Outcome]] , x=data_[[Running_variable]], all=TRUE,
-                   # subset=-est$bws[1,1]<= data_[[Running_variable]]  & data_[[Running_variable]]  <= est$bws[1,2],
-                   kernel="triangular", 
-                   b = c(est$bws[2,1], est$bws[2,2]), 
-                   h=c(est$bws[1,1], est$bws[1,2]), p=1 )
-  "In this case, a one unit decrease in the ATE is associated with a 32.68% 
-  decrease in the mean of the control group."
   
-  # png(paste0(graphs_dir,get_school_stage(grade) ,q_,Outcome, ".png"),  width = 1030, height = 598, res=100)
-  model_pic  <- model_outputs_plot(est= est, data = data_, Running_variable, Outcome)
-  # dev.off()
-  tempo = Table_result(model)
-  tempo$grade = grade
-  tempo$estiamtion = row.names(tempo)
-  rownames(tempo) <- NULL
-  Table_result_ = rbind(Table_result_, tempo )
+  
+  png(paste0(graphs_dir,"Inference_by_grade_", Outcome_male,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+  summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                             Outcome = Outcome_male , conf_level = 0.9,
+                             TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+  
+  dev.off()
+  
+  png(paste0(graphs_dir,"Inference_by_grade_", Outcome_female,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+  summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                             Outcome = Outcome_female , conf_level = 0.9,
+                             TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+  dev.off()
+  
 }
 
+if (1==1) {
+  q_= 'q_12'
+  
+  
+  data =df
+  data = subset(data, data$GRADO_ <= 5)
+  data = subset(data, data$GRADO_ >= 0)
+  data =  subset(data, data$Q_artyl <= 2)
+  
+  if (1==1) {
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    dev.off()
+    
+    
+    
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome_male,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome_male , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    
+    dev.off()
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome_female,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome_female , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    dev.off()
+    
+  }
+}
 
-summary_plot(subset(Table_result_,
-                    Table_result_$estiamtion == "Robust"), conf_level=0.95, 
-             TITULO = 'Robust Estiamtion of exploration announcement effect\n   on dropout rates' )
+if (1==1) {
+  q_= 'q_34'
+  
+  
+  data =df
+  data = subset(data, data$GRADO_ <= 5)
+  data = subset(data, data$GRADO_ >= 0)
+  data =  subset(data, data$Q_artyl > 2)
+  
+  if (1==1) {
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    dev.off()
+    
+    
+    
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome_male,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome_male , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    
+    dev.off()
+    
+    png(paste0(graphs_dir,"Inference_by_grade_", Outcome_female,"_" ,q_, ".png"),  width = 1030, height = 598, res = 100)
+    summary_plot_heterogenity( data = data, Running_variable=Running_variable, 
+                               Outcome = Outcome_female , conf_level = 0.9,
+                               TITULO = '', heterogenity =grades,estiamtion =  "Robust")
+    dev.off()
+    
+  }
+}
+
+  # 
+# png(paste0(graphs_dir,"general_result_",Outcome_male, "_", q_ , ".png"),  width = 1030, height = 598, res = 100)
+# model_pic_male = model_outputs_plot(est= est_male, data = data, Running_variable, Outcome_male)
+# dev.off()
+# 
+# 
+# png(paste0(graphs_dir,"bw_sensibility_", Outcome_male ,"_",q_,  ".png"),  width = 1030, height = 598, res = 100)
+# bandwidth_sensibility_test(data= data,Outcome=Outcome_male, Running_variable=Running_variable,
+#                            bw_mse = model_pic_male[[2]],
+#                            conf_level = 0.95 , full = 30)[2]
+# dev.off() 
+# 
 
 
 

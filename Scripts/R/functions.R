@@ -1,14 +1,43 @@
 ###### Fimction of homogenization the grade ######
 source("C:/Users/USER/Desktop/The Blessing of Oil Fields/Black Gold and Dull Minds/Scripts/R/rdplot_function_modifies.R")
+
+grades_effect_extention <- function(Outcome, level = 'secondary'){
+  if (grepl("T2", Outcome)) {
+    if (level == 'secondary') {
+      grades <- c('6' , '7', '8', '9'  )  
+    } else{
+      grades <- c('0','1' , '2', '3', '4', '5'  )
+    } 
+  } 
+  else if (grepl("T1", Outcome)) {
+    if (level == 'secondary') {
+      grades <- c('6' , '7', '8', '9', '10'  ) 
+    } else{
+      grades <- c('0','1' , '2', '3', '4', '5'  )
+    }
+    
+  } else {
+    grades <- c('0','1' , '2', '3', '4', '5','6' , '7', '8', '9', '10' , '11'  )
+  }
+  return(grades)
+}
 get_school_stage <- function(grade){
   grade <- as.integer(grade)
   if (grade <= 6){
     return(paste0(grade, "th grade elementary school"))
   } else if (grade <= 9){
-    return(paste0(grade, "th grade junior high school"))
+    return(paste0(grade, "th grade elementary school"))
   } else {
-    return(paste0(grade, "th grade high school"))
+    return(paste0(grade, "th grade elementary school"))
   }
+  
+  # if (grade <= 6){
+  #   return(paste0(grade, "th grade elementary school"))
+  # } else if (grade <= 9){
+  #   return(paste0(grade, "th grade junior high school"))
+  # } else {
+  #   return(paste0(grade, "th grade high school"))
+  # }
 }
 
 
@@ -401,6 +430,7 @@ model_outputs_plot <- function(est, data, Running_variable, Outcome ){
   box_text = paste0("Relative effect = ", round(ate / control_mean,3),
                     "\n", "ATE (se) = ", ate," (", se_ate, ")\n ",
                     "Mean of controls = ", round( control_mean,3) )
+  
   plot_graph = Graph_plot[[2]]  +
     xlab("Distance from Exploration Border under an E&P contract (m) ") + 
     ylab("Effect on Dropout Rate (percentage points)") + 
@@ -416,6 +446,286 @@ model_outputs_plot <- function(est, data, Running_variable, Outcome ){
   
   print(plot_graph +  bloxplot_)
   
-  return( list(plot_graph+  bloxplot_ , h))
+  return( list(plot_graph+  bloxplot_ , h, model))
+}
+
+##############################################
+# pre_treatment_difference(data = data, treatment_variable = "IS_IN_T1", outcome_variable = "DESERTO_T1" )
+
+run_rd_tests <- function(data, distance_var, outcome_var, covariates = NULL) {
+  
+  # Subset data into control and treatment groups
+  # distance_var = "distance"
+  # outcome_var = "DESERTO_T1"
+  data$distance_var = data[[distance_var]]
+  data$outcome_var = data[[outcome_var]]
+  # covariates = c( "FRAC_FEMALE"   ,      "FRAC_MALE",   "FRAC_ESTRATO_1_2" , "FRAC_ESTRATO_3_4" , "EDAD")
+
+  control_data <- subset(data, distance_var < 0)
+  treatment_data <- subset(data, distance_var >= 0)
+  
+  # Falsification test 1: Testing for manipulation of the running variable
+  # rd_plot <- ggplot(data, aes(x = distance_var, y = outcome_var)) +
+  #   geom_point() +
+  #   geom_vline(xintercept = 0, linetype = "dashed") +
+  #   xlab("Running variable") +
+  #   ylab("Outcome") +
+  #   ggtitle("RD Plot")
+  # print(rd_plot)
+  
+  # Falsification test 2: Testing for pre-treatment differences in covariates
+  if (!is.null(covariates)) {
+    covariate_diffs <- lapply(covariates, function(covariate) {
+      mean(treatment_data[[covariate]], ) - mean(control_data[[covariate]])
+    })
+    
+    
+    cat("Pre-treatment differences in covariates:\n")
+    print(covariate_diffs)
+  }
+  
+  # Falsification test 3: Testing for manipulation of treatment assignment
+  rd_est_1 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300), data = data)
+  rd_est_2 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300) + 
+                   factor(distance_var >= 1000), data = data)
+  rd_est_3 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300) + 
+                   factor(distance_var >= 1000) + factor(distance_var >= 2000), data = data)
+  rd_est_4 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300) + 
+                   factor(distance_var >= 1000) + factor(distance_var >= 2000) + 
+                   factor(distance_var >= 3000), data = data)
+  rd_est_5 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300) + 
+                   factor(distance_var >= 1000) + factor(distance_var >= 2000) + 
+                   factor(distance_var >= 3000) + factor(distance_var >= 4000), data = data)
+  rd_est_6 <- lm(outcome_var ~ distance_var + factor(distance_var >= 300) + 
+                   factor(distance_var >= 1000) + factor(distance_var >= 2000) + 
+                   factor(distance_var >= 3000) + factor(distance_var >= 4000) + 
+                   factor(distance_var >= 5000), data = data)
+  
+  rd_tests <- list()
+  
+  # Test 1: Coefficient on running variable should be significant
+  test_1 <- summary(rd_est_1)$coef[2, 4] < 0.05
+  rd_tests[["Test 1"]] <- test_1
+  
+  # Test 2: Coefficients on running variable and treatment indicator should be significant
+  test_2 <- all(summary(rd_est_2)$coef[c(2, 3), 4] < 0.05)
+  rd_tests[["Test 2"]] <- test_2
+  
+  # Test 3: Coefficients on running variable, treatment indicator, and cutoff indicators should be significant
+  test_3 <- all(summary(rd_est_3)$coef[c(2, 3, 4), 4] < 0.05)
+  rd_tests[["Test 3"]] <- test_3
+  
+  # Test 4: Coefficients on running variable and high-order polynomial terms should not be significant
+  rd_est_4 <- lm(outcome_var ~ distance_var + I(distance_var^2) + I(distance_var^3) + I(distance_var^4), data = data)
+  test_4 <- all(summary(rd_est_4)$coef[c(2:5), 4] > 0.05)
+  rd_tests[["Test 4"]] <- test_4
+  
+  # Test 5: Coefficients on running variable and covariates should be significant
+  if (!is.null(covariates)) {
+    rd_est_5 <- lm(outcome_var ~ distance_var + covariates + factor(distance_var >= 0), data = data)
+    test_5 <- all(summary(rd_est_5)$coef[2:(length(covariates)+2), 4] < 0.05)
+    rd_tests[["Test 5"]] <- test_5
+  }
+  
+  # Test 6: Coefficients on running variable and interaction terms between running variable and covariates should not be significant
+  if (!is.null(covariates)) {
+    interaction_terms <- lapply(covariates, function(covariate) {
+      paste0("distance_var:", covariate)
+    })
+    interaction_terms <- unlist(interaction_terms)
+    rd_est_6 <- lm(outcome_var ~ distance_var + covariates + interaction_terms + factor(distance_var >= 0), data = data)
+    test_6 <- all(summary(rd_est_6)$coef[-1, 4] > 0.05)
+    rd_tests[["Test 6"]] <- test_6
+  }
+  
+  # Falsification test 4: Testing for sensitivity to bandwidth choice
+  rd_est_bw1 <- lm(outcome_var ~ distance_var + factor(distance_var >= 0), data = data)
+  rd_est_bw2 <- lm(outcome_var ~ distance_var + factor(distance_var >= 0), data = data,
+                   subset = abs(distance_var) < 200)
+  rd_est_bw3 <- lm(outcome_var ~ distance_var + factor(distance_var >= 0), data = data,
+                   subset = abs(distance_var) < 100)
+  test_7 <- all(c(summary(rd_est_bw1)$coef[2, 4], summary(rd_est_bw2)$coef[2, 4], summary(rd_est_bw3)$coef[2, 4]) < 0.05)
+  rd_tests[["Test 7"]] <- test_7
+  
+  # Falsification test 5: Testing for density discontinuities
+  rd_density_plot <- ggplot(data, aes(x = distance_var)) +
+    geom_density(aes(fill = factor(distance_var >= 0)), alpha = 0.5) +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    xlab("Running variable") +
+    ylab("Density") +
+    ggtitle("RD Density Plot")
+  print(rd_density_plot)
+  
+  test_8 <- t.test(data$outcome_var[data$distance_var < 0], data$outcome_var[data$distance_var >= 0], var.equal = FALSE)$p.value > 0.05
+  rd_tests[["Test 8"]] <- test_8
+  
+  return(rd_tests)
+}
+
+
+summary_plot_heterogenity = function ( data, Running_variable, Outcome , conf_level = 0.9, TITULO = '', 
+                                       heterogenity ="",estiamtion =  "Robust") {
+  
+  Table_result_ = data.frame()
+  "EFFECT BY GRADES "
+  data$area <- ifelse(data[[Running_variable]] < 0, "Control area", "Treatment area")
+  for (grade in heterogenity ) {
+    data_ = subset(data, data$GRADO==grade)
+    est_hete = rdrobust(y=data_[[Outcome]] , x=data_[[Running_variable]] , all=TRUE)
+    
+    bw_h = data[data[[Running_variable]] >= -est_hete$bws[1,2] , ]
+    bw_h = bw_h[bw_h[[Running_variable]] <= est_hete$bws[1,1] , ]
+    
+    
+    model_hete = rdrobust(y=data_[[Outcome]] , x=data_[[Running_variable]], all=TRUE, 
+                          kernel="triangular",
+                          b = c(est_hete$bws[2,1], est_hete$bws[2,2] ), 
+                          h=c(est_hete$bws[1,1] , est_hete$bws[1,2] ) ,
+                          p=1 )
+    control_mean = mean( bw_h[bw_h[[Running_variable]] <= 0 , ][[Outcome]] , na.rm = T)
+    treatment_mean = mean( bw_h[bw_h[[Running_variable]] > 0 , ][[Outcome]] , na.rm = T)
+    ate = round(model_hete$coef[3], 4)
+    se_ate = round( model_hete$se [3] , 3)
+    
+    h = est_hete$bws[1,1]
+    "In this case, a one unit decrease in the ATE is associated with a 32.68% 
+  decrease in the mean of the control group."
+    
+    # png(paste0(graphs_dir,get_school_stage(grade) ,q_,Outcome, ".png"),  width = 1030, height = 598, res=100)
+    # model_pic  <- model_outputs_plot(est= est, data = data_, Running_variable, Outcome)
+    # dev.off()
+    tempo = Table_result(model_hete)
+    tempo$grade = grade
+    tempo$estiamtion = row.names(tempo)
+    tempo$control_mean = control_mean
+    
+    
+    rownames(tempo) <- NULL
+    Table_result_ = rbind(Table_result_, tempo )
+  }
+  estiamtion_ =  Table_result_$estiamtion ==estiamtion
+  out = subset(Table_result_, estiamtion_ )
+  rownames(out) <- NULL
+  mynamestheme <- ggplot2::theme(
+    plot.title = element_text(family = "Helvetica", face = "bold", size = (15), hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(colour = "steelblue", face = "bold.italic", family = "Helvetica"),
+    legend.text = element_text(face = "italic", colour = "steelblue4", family = "Helvetica"),
+    axis.title = element_text(family = "Helvetica", face = "bold", size = (12), colour = "steelblue4"),
+    axis.text = element_text(family = "Courier", face = "bold", colour = "steelblue", size = (11)  ), #colour = "cornflowerblue"
+    axis.text.x = element_text(angle = 90, vjust = 0.5 ),
+    legend.position = "bottom"
+  )
+  out$grade <- as.integer(out$grade)
+  
+  out$grade_name <- sapply(out$grade, get_school_stage) #get_school_stage(out$grade)
+  
+  for (i in 1:nrow(out)) {
+    out[i,10] = gsub(pattern = " elementary school",
+                     replacement =  paste0("\n", 
+                                           "ATE (se) = ", round( out[i,1] , 4 ) , " (", round(out[i,2], 3) , ")\n " ,
+                                           "Mean of controls = ", round( out[i,9],3) , "\n "   ,
+                                           "Relative effect = " , round(out[i,1] / out[i,9] ,3) ) ,
+                     out[i,10]
+    )
+  }
+  
+  out$grade_name <- factor(out$grade_name, levels = unique(out$grade_name)[order(unique(out$grade))])
+  print_conf_level = paste0(conf_level*100, '%')
+  # Define confidence interval multiplier based on confidence level
+  if (conf_level == 0.95) {
+    conf_mult <- 1.96
+  } else if (conf_level == 0.90) {
+    conf_mult <- 1.645
+  } else if (conf_level == 0.85) {
+    conf_mult <- 1.44
+  } else {
+    stop("Invalid confidence level. Please choose 0.95, 0.90, or 0.85.")
+  }
+  # Compute y-axis limits based on standard errors and confidence interval multiplier
+  y_lims <- c(min(out$Coeff - conf_mult * out$Std..Err.), 
+              max(out$Coeff + conf_mult * out$Std..Err.)) * 1.05
+  
+  out$ci.CI.Lower = (out$Coeff - conf_mult * out$Std..Err.)
+  out$ci.CI.Upper = (out$Coeff + conf_mult * out$Std..Err.)
+  
+  Plot <- ggplot2::ggplot(data = out, ggplot2::aes(x = .data$grade_name,
+                                                   y = .data$Coeff, 
+                                                   ymin = .data$ci.CI.Lower , 
+                                                   ymax = .data$ci.CI.Upper)) +
+    theme_light()  + ggplot2::geom_point( size = 1.8) + ggplot2::geom_errorbar(width  = 0.1) +
+    scale_x_discrete() +
+    ggplot2::theme(
+      plot.title = element_text(hjust = 0.5, vjust = 0.5),
+      axis.line.x = element_line(color="steelblue4", size = 0.5),
+      axis.line.y = element_line(color="steelblue4", size = 0.5)
+    ) +
+    ggplot2::ggtitle(TITULO) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+    ggplot2::labs(y = paste0("Point Estimate and ",print_conf_level," Confidence Interval\n Dropout rate"), 
+                  color = "Estimator") +xlab("Scholar Grade")
+  
+  P <- Plot + mynamestheme  
+  print(P)
+}
+
+
+
+df_to_latex <- function(df) {
+  # create xtable object with dataframe
+  tbl <- xtable(df)
+  
+  # add column names as first row
+  addtorow <- list(names(df))
+  tbl <- addtolength(tbl, width=dim(df)[2])
+  tbl <- addtorow(tbl, addtorow, position=1)
+  
+  # print LaTeX table
+  print(tbl, include.rownames=FALSE, sanitize.text.function = function(x){x})
+}
+
+
+# Function to convert a data frame to a LaTeX table
+df_to_latex <- function(df, caption = NULL, NOTES =NULL) {
+  # Convert column names to LaTeX format
+  colnames_ <- colnames(df)
+  header_ = ""
+  for (variable in 1:length(colnames_) ) {
+    if (variable==length(colnames_) ) {
+      header_ =  paste0(header_, colnames_[variable] )
+    }else{
+      header_ =  paste0(header_, colnames_[variable], " & ")
+    } 
+  }
+  
+  table_str <- "\\begin{table}[htbp]\\centering\n \\footnotesize \n"
+  table_str <- paste0(table_str, " \\caption{", caption ,"}\n")
+  table_str <- paste0(table_str, "\\begin{tabular}{l",paste(rep('c', length(colnames_)-1), collapse = ''),"}\n\\hline\\hline\n")
+  table_str <- paste0(table_str, header_, "  \\\\ \n")
+  table_str <- paste0(table_str, "\\hline \\hline  \n")
+  
+  for (i  in 1:nrow(df)) {
+    table_str <- paste0(table_str, paste( df[i,] , collapse = " & ") ,  " \\\\ \n ")
+  }
+  
+  table_str <- paste0(table_str, "\\hline\\hline\n\\end{tabular}\n\\label{table:rd}\n")
+  table_str <- paste0(table_str, "\\begin{tablenotes} \n  \\justifying \\tiny \\textbf{Note: }    \n   ")
+  table_str  <- paste0(table_str, NOTES )
+  table_str  <- paste0(table_str, "\\end{tablenotes} \n \\end{table} " )
+  # cat(table_str)
+  return(table_str)
+}
+
+picture_to_latex <- function(saved_in, name = '', level = 'elementary' ) {
+  if (level == 'elementary') {
+    Graph_ = " \\includegraphics[scale=0.46]{Graph/Elementary_school/"
+  }else{
+    Graph_ = " \\includegraphics[scale=0.46]{Graph/Secondary_school/"
+  }
+  
+  table_str <- paste0("\\begin{frame}{" ,name , "}\n \\centering\n \\footnotesize \n")
+  table_str <- paste0( table_str, " \\begin{center} \n "  )
+  table_str <-   paste0(table_str,  Graph_ , saved_in, "}\n \\end{center} ")
+  table_str <-   paste0(table_str,  "\n \\end{frame} ")
+  cat(table_str)
 }
 

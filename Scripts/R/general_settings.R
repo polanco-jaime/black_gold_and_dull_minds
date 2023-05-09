@@ -1,7 +1,7 @@
 # General setting
 ## Libraries
 ########################################################################
-packageList<-c("rdlocrand", "rddensity", 'rdrobust',  
+packageList<-c("rdlocrand", "rddensity", 'rdrobust',   
                'rdmulti', 'rdpower', 'stargazer', 'bigrquery' , "extrafont" )
 # devtools::install_github("apache/arrow/r")
 
@@ -18,8 +18,5 @@ for (i in 1:length(packageList) ) {
 # Authenticate user
 project <- "ph-jabri"
 # bq_auth(path = "eng.pepj@gmail.com" ) #use_oob = TRUE
-
-
-
 
  
