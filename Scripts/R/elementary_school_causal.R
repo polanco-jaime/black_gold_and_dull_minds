@@ -28,30 +28,44 @@ level = 'elementary'
 ############################################
 ## General Inference 
 ###########################################
-
-
+as.data.frame(colnames(df))
+summary(df$TOTAL_STUDENTS)
 data =df
 data = subset(data, data$GRADO_ <= 5)
 data = subset(data, data$GRADO_ >= 0)
+data = subset(data, data$TOTAL_STUDENTS >= 10 & data$TOTAL_STUDENTS <= 45)
 table(data$GRADO)
 
-library(haven)
-# haven::write_dta(data,paste0(data_dir,"elementary_school_data.dta") )
-Running_variable <- 'distance'
-Outcome <- 'DESERTO_T1'
-Outcome_male <- 'MALE_DROPOUT_T1'
-Outcome_female <- 'FEMALE_DROPOUT_T1'
+if(1==1){
+  library(haven)
+  # haven::write_dta(data,paste0(data_dir,"elementary_school_data.dta") )
+  Running_variable <- 'distance'
+  Outcome <- 'DESERTO_T1'
+  Outcome_male <- 'MALE_DROPOUT_T1'
+  Outcome_female <- 'FEMALE_DROPOUT_T1'
+  
+  q_= 'q_all'
+  
+  
+  est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
+  summary(est)
+  model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE ,   
+                   h=c(est$bws[1,1], est$bws[1,2]), p=1,kernel = "triangular" , c = 0
+  )
+  
+  summary(model)
+  rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+         subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+         binselect="qs", 
+         kernel="triangular", 
+         h=c(est$bws[1,1], est$bws[1,2]),  p=1 )
+  rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+         subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+         binselect="esmvpr", 
+         kernel="triangular", 
+         h=c(est$bws[1,1], est$bws[1,2]),  p=2 )
+}
 
-q_= 'q_all'
-
-
-est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
-summary(est)
-model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
-                 subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
-                 kernel="triangular", h=c(est$bws[1,1], est$bws[1,2]), p=1 )
-
-summary(model)
 "In this case, a one unit decrease in the ATE is associated with a 32.68% 
   decrease in the mean of the control group."
 rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,

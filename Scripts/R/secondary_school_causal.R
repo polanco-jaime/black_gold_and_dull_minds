@@ -18,21 +18,25 @@ if (Sys.info()["nodename"] == "cpossosu") {
 ## General Inference 
 ###########################################
 
+
+
 level = 'Secondary_school'
 data =df
-data <- data[data$Q_artyl<=3, ]
+# data = subset(data, data$TOTAL_STUDENTS >= 1 & data$TOTAL_STUDENTS <= 10)
+# data <- data[data$Q_artyl<=3, ]
 Running_variable <- 'distance'
-Outcome_male <- 'MALE_DROPOUT_T2'
-Outcome_female <- 'FEMALE_DROPOUT_T2'
-Outcome <- 'DESERTO_T2'
+Outcome_male <- 'MALE_DROPOUT_T1'
+Outcome_female <- 'FEMALE_DROPOUT_T1'
+Outcome <- 'DESERTO_T1'
 
 grades = grades_effect_extention(Outcome= Outcome, level = 'secondary')
 
 # data <- data[data$GRADO %in% c(grades, "11"), ]
 
 data <- data[data$GRADO %in% grades , ]
-library(haven)
-haven::write_dta(data,paste0(data_dir,"T1_","secondary_school_data.dta") )
+
+# library(haven)
+# haven::write_dta(data,paste0(data_dir,"T1_","secondary_school_data.dta") )
 
 q_= 'q_all'
 unique(data$GRADO)
@@ -45,10 +49,10 @@ model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]], all=TRUE,
 summary(model)
 # "In this case, a one unit decrease in the ATE is associated with a 32.68% 
 #   decrease in the mean of the control group."
-# rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
-#        subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
-#        binselect="es", kernel="triangular",
-#        h=c(est$bws[1,1], est$bws[1,2]),  p=1 )
+rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+       subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+       binselect="es", kernel="triangular",
+       h=c(est$bws[1,1], est$bws[1,2]),  p=1 )
 # # ?rdplot
 
 png(paste0(graphs_dir,"general_result_",Outcome, "_", q_ , ".png"),  width = 1030, height = 598, res = 100 )
