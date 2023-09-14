@@ -1,5 +1,5 @@
 ###### Fimction of homogenization the grade ######
-source("C:/Users/USER/Desktop/The Blessing of Oil Fields/Black Gold and Dull Minds/Scripts/R/rdplot_function_modifies.R")
+source("./Scripts/R/rdplot_function_modifies.R")
 
 grades_effect_extention <- function(Outcome, level = 'secondary'){
   if (grepl("T2", Outcome)) {
@@ -697,6 +697,8 @@ df_to_latex <- function(df, caption = NULL, NOTES =NULL) {
     } 
   }
   
+
+  
   table_str <- "\\begin{table}[htbp]\\centering\n \\footnotesize \n"
   table_str <- paste0(table_str, " \\caption{", caption ,"}\n")
   table_str <- paste0(table_str, "\\begin{tabular}{l",paste(rep('c', length(colnames_)-1), collapse = ''),"}\n\\hline\\hline\n")
@@ -747,5 +749,40 @@ picture_to_latex <- function(saved_in, name = '', level = 'elementary' ) {
   table_str <-   paste0(table_str,  "\n \\end{frame} ")
  
   cat(table_str)
+}
+# Function to aggregate values grouped by specific columns
+
+aggregate_function = function(Tabla, 
+                              aggregate = 'SUM',
+                              cols_to_agg, 
+                              group_by) {
+  BASE = "SELECT "
+  Base = ''
+  for (i in group_by) {
+    Base = paste0(Base,' ' ,i , ', ') 
+  }
+  BASE = paste0(BASE,Base ) 
+  
+  Body = ''
+  for (i in cols_to_agg) {
+    if (aggregate == 'COUNT' | aggregate == 'count' ) {
+      Body =  paste0(Body,   aggregate,'( DISTINCT ',i, ' ) as ', i , ' , '  )  
+    }else{
+      Body =  paste0(Body,   aggregate,'( round( ',i, ' ,1) ) as ', i , ' , '  )
+    }
+  }
+  Body =  substr(Body,1,  nchar(Body)-2 )
+  
+  TAIL_query = ''
+  for (i in group_by) {
+    TAIL_query = paste0(TAIL_query,' ' ,i , ', ') 
+  }
+  TAIL_query =  substr(TAIL_query,1,  nchar(TAIL_query)-2 )
+  
+  SQL_query = paste0(BASE,Body , ' FROM Tabla GROUP BY ' , TAIL_query)
+  print(SQL_query)
+  return(sqldf::sqldf(SQL_query) )
+  
+  
 }
 

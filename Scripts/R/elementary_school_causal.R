@@ -12,14 +12,21 @@ if (Sys.info()["nodename"] == "cpossosu") {
   data_dir <- paste0(General_path , "Data/Elementary_school/")
   graphs_dir <-  paste0(General_path , "Graph/Elementary_school/") 
   tables_dir <- paste0(General_path , "Tables/Elementary_school/")  
+}   else if (Sys.info()["nodename"] == "CLOUD37") {
+  General_path = "C:/Users/Usuario/Desktop/01 The Blessing of Oil Fields/black_gold_and_dull_minds/"
+  data_dir <- paste0(General_path , "Data/Elementary_school/")
+  graphs_dir <-  paste0(General_path , "Graph/Elementary_school/") 
+  tables_dir <- paste0(General_path , "Tables/Elementary_school/")  
 }
+setwd(General_path)
 #########################################
 ## Load required settings
 #########################################
 source("./Scripts/R/general_settings.R ")
-# source("./Scripts/R/Reading_data.R")
-
 source("./Scripts/R/functions.R")
+
+source("./Scripts/R/Reading_data.R")
+
 attach(df)
 #df = df1 
 # Data
@@ -30,12 +37,55 @@ level = 'elementary'
 ###########################################
 as.data.frame(colnames(df))
 summary(df$TOTAL_STUDENTS)
+#######################################
 data =df
 data = subset(data, data$GRADO_ <= 5)
 data = subset(data, data$GRADO_ >= 0)
-data = subset(data, data$TOTAL_STUDENTS >= 10 & data$TOTAL_STUDENTS <= 45)
+# data = subset(data, data$TOTAL_STUDENTS >= 6)
 table(data$GRADO)
 
+########################################
+# Elementary school - general result
+########################################
+data$TOTAL_STUDENTS_DESERTO_T1 = data$TOTAL_STUDENTS*data$DESERTO_T1
+# Function to aggregate values grouped by specific columns
+
+data <- aggregate_function(
+  Tabla = data,
+  aggregate = 'sum',
+  cols_to_agg = c('TOTAL_STUDENTS_DESERTO_T1', 'TOTAL_STUDENTS', 'MALE_T1', 'FEMALE_T1'),
+  group_by = c('CODIGO_DANE_SEDE', 'distance')
+)
+data$DESERTO_T1 = data$TOTAL_STUDENTS_DESERTO_T1 / data$TOTAL_STUDENTS
+data = subset(data, data$TOTAL_STUDENTS >= 6)
+Running_variable <- 'distance'
+Outcome <- 'DESERTO_T1'
+Outcome_male <- 'MALE_DROPOUT_T1'
+Outcome_female <- 'FEMALE_DROPOUT_T1'
+
+q_= 'q_all'
+
+
+est = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE)
+summary(est)
+model = rdrobust(y=data[[Outcome]] , x=data[[Running_variable]] , all=TRUE ,   
+                 h=c(est$bws[1,1], est$bws[1,2]), p=1,kernel = "triangular" , c = 0
+)
+
+summary(model)
+
+rdplot(y=data[[Outcome]], x=data[[Running_variable]],c =0,
+       subset=-est$bws[1,1]<= data[[Running_variable]]  & data[[Running_variable]]  <= est$bws[1,2],
+       binselect="qs", 
+       kernel="triangular", 
+       h=c(est$bws[1,1], est$bws[1,2]),  p=1 )
+   
+#png(paste0(graphs_dir,"general_result_",Outcome, "_", q_ , ".png"),  width = 1030, height = 598, res = 105 )
+model_pic  <- model_outputs_plot(est= est, data = data, Running_variable, Outcome)
+d#ev.off()
+
+
+########################################
 if(1==1){
   library(haven)
   # haven::write_dta(data,paste0(data_dir,"elementary_school_data.dta") )
